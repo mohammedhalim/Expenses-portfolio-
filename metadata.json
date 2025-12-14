@@ -1,0 +1,5 @@
+{
+  "name": "PocketFinance",
+  "description": "A fully offline, mobile-first personal finance tracker for managing accounts, transactions, and stock investments.",
+  "requestFramePermissions": []
+}
