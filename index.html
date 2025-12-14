@@ -32,6 +32,18 @@
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
       }
+      /* Error overlay styles */
+      #error-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: white;
+        color: #ef4444;
+        padding: 20px;
+        z-index: 9999;
+        overflow: auto;
+        font-family: monospace;
+      }
     </style>
   <script type="importmap">
 {
@@ -47,6 +59,26 @@
 </script>
 </head>
   <body class="bg-gray-50 text-gray-900 select-none">
-    <div id="root"></div>
+    <div id="root">
+      <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;gap:15px;color:#6b7280;font-family:sans-serif;">
+        <div style="width:30px;height:30px;border:3px solid #e5e7eb;border-top-color:#0ea5e9;border-radius:50%;animation:spin 1s linear infinite"></div>
+        <p style="font-size:14px;font-weight:500;">Loading PocketFinance...</p>
+        <style>@keyframes spin {to{transform:rotate(360deg)}}</style>
+      </div>
+    </div>
+    
+    <div id="error-overlay"></div>
+    <script>
+      window.addEventListener('error', function(e) {
+        const overlay = document.getElementById('error-overlay');
+        if (overlay) {
+          overlay.style.display = 'block';
+          overlay.innerHTML += '<h3 style="font-size:18px;font-weight:bold;margin-bottom:10px">Application Error</h3><pre style="background:#fee2e2;padding:10px;border-radius:8px;overflow:auto;">' + e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno + '</pre><p style="margin-top:10px;color:#374151">If this error persists, ensure you have built the project correctly for production.</p>';
+        }
+      });
+    </script>
+    
+    <!-- IMPORTANT: Link to the entry point -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
