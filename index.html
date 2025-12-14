@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>PocketFinance</title>
+    <!-- Tailwind via CDN is kept for simplicity -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -48,12 +49,14 @@
   <script type="importmap">
 {
   "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "recharts": "https://esm.sh/recharts@^3.5.1",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.33.0"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
   }
 }
 </script>
@@ -73,12 +76,12 @@
         const overlay = document.getElementById('error-overlay');
         if (overlay) {
           overlay.style.display = 'block';
-          overlay.innerHTML += '<h3 style="font-size:18px;font-weight:bold;margin-bottom:10px">Application Error</h3><pre style="background:#fee2e2;padding:10px;border-radius:8px;overflow:auto;">' + e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno + '</pre><p style="margin-top:10px;color:#374151">If this error persists, ensure you have built the project correctly for production.</p>';
+          overlay.innerHTML += '<h3 style="font-size:18px;font-weight:bold;margin-bottom:10px">Application Error</h3><pre style="background:#fee2e2;padding:10px;border-radius:8px;overflow:auto;">' + e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno + '</pre><p style="margin-top:10px;color:#374151">If this error persists, check the console.</p>';
         }
       });
     </script>
     
-    <!-- IMPORTANT: Link to the entry point -->
-    <script type="module" src="./index.tsx"></script>
+    <!-- Vite Entry Point -->
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
