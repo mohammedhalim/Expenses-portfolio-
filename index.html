@@ -1,87 +1,644 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PocketFinance</title>
-    <!-- Tailwind via CDN is kept for simplicity -->
+    
+    <!-- PWA Setup -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1055/1055131.png">
+
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              brand: {
-                50: '#f0f9ff',
-                100: '#e0f2fe',
-                500: '#0ea5e9',
-                600: '#0284c7',
-                700: '#0369a1',
-              }
+              brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' }
             }
           }
         }
       }
     </script>
+
+    <!-- React & Libraries (UMD for Browser) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
-      /* Hide scrollbar for Chrome, Safari and Opera */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      /* Hide scrollbar for IE, Edge and Firefox */
-      .no-scrollbar {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
-      }
-      /* Error overlay styles */
-      #error-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: white;
-        color: #ef4444;
-        padding: 20px;
-        z-index: 9999;
-        overflow: auto;
-        font-family: monospace;
-      }
+        /* Mobile Optimizations */
+        body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        input, select, textarea { font-size: 16px; } /* Prevent zoom on iOS */
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
-    "vite": "https://esm.sh/vite@^7.2.7",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "recharts": "https://esm.sh/recharts@^3.5.1",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.0"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-gray-900 select-none">
-    <div id="root">
-      <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;gap:15px;color:#6b7280;font-family:sans-serif;">
-        <div style="width:30px;height:30px;border:3px solid #e5e7eb;border-top-color:#0ea5e9;border-radius:50%;animation:spin 1s linear infinite"></div>
-        <p style="font-size:14px;font-weight:500;">Loading PocketFinance...</p>
-        <style>@keyframes spin {to{transform:rotate(360deg)}}</style>
-      </div>
-    </div>
-    
-    <div id="error-overlay"></div>
-    <script>
-      window.addEventListener('error', function(e) {
-        const overlay = document.getElementById('error-overlay');
-        if (overlay) {
-          overlay.style.display = 'block';
-          overlay.innerHTML += '<h3 style="font-size:18px;font-weight:bold;margin-bottom:10px">Application Error</h3><pre style="background:#fee2e2;padding:10px;border-radius:8px;overflow:auto;">' + e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno + '</pre><p style="margin-top:10px;color:#374151">If this error persists, check the console.</p>';
-        }
-      });
+<body class="bg-gray-50 text-gray-900 select-none h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
+
+    <!-- MAIN APPLICATION CODE -->
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+        const { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } = Recharts;
+
+        // --- ICONS (SVG Paths) ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const paths = {
+                LayoutDashboard: "M3 3h7v7H3V3zm11 0h7v7h-7V3zm0 11h7v7h-7v-7zM3 14h7v7H3v-7z",
+                Wallet: "M20 12V8H6a2 2 0 0 1-2-2 2 2 0 0 1 2-2h12v4",
+                WalletFull: "M20 7h-7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-2 7h-2v-2h2v2z", 
+                CreditCard: "M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H3V12h18v6zM3 8V6h18v2H3z",
+                TrendingUp: "M23 6l-9.5 9.5-5-5L1 18",
+                Sparkles: "m12 3-1.9 5.8a2 2 0 0 1-1.2 1.2L3 12l5.8 1.9a2 2 0 0 1 1.2 1.2L12 21l1.9-5.8a2 2 0 0 1 1.2-1.2L21 12l-5.8-1.9a2 2 0 0 1-1.2-1.2L12 3z",
+                RefreshCcw: "M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+                TrendingDown: "M23 18l-9.5-9.5-5 5L1 6",
+                Landmark: "M3 22h18v-2H3v2zm0-4h18v-2H3v2zm9-12L3 10v2h18v-2l-9-4zm-7 8h2v6H5v-6zm4 0h2v6H9v-6zm4 0h2v6h-2v-6zm4 0h2v6h-2v-6z",
+                Banknote: "M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm10-4v-4c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2z",
+                Plus: "M12 5v14M5 12h14",
+                X: "M18 6L6 18M6 6l12 12",
+                Pencil: "M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z",
+                Trash2: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+                ArrowUpRight: "M7 17L17 7M7 7h10v10",
+                ArrowDownLeft: "M17 7L7 17M17 17H7V7",
+                ArrowRightLeft: "M21 7 3 7M3 17l18 0M6 4 3 7l3 3M18 20l3-3-3-3",
+                ArrowDown: "M12 5v14M19 12l-7 7-7-7",
+                Check: "M20 6 9 17l-5-5",
+                RotateCcw: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+                Loader2: "M21 12a9 9 0 1 1-6.219-8.56"
+            };
+            const d = paths[name] || "";
+            return (
+                <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    width={size} height={size} 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    className={className}
+                >
+                    {name === 'Wallet' ? (
+                        <>
+                           <path d="M20 12V8H6a2 2 0 0 1-2-2 2 2 0 0 1 2-2h12v4" />
+                           <path d="M4 6v12a2 2 0 0 0 2 2h14v-4" />
+                           <path d="M18 12a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h4v-8Z" />
+                        </>
+                    ) : (
+                        <path d={d} />
+                    )}
+                </svg>
+            );
+        };
+
+        // --- TYPES & DATA ---
+        const PREDEFINED_CATEGORIES = [
+            { id: 'cat_salary', name: 'Salary', icon: 'Wallet', type: 'INCOME' },
+            { id: 'cat_freelance', name: 'Freelance', icon: 'LayoutDashboard', type: 'INCOME' },
+            { id: 'cat_food', name: 'Food & Dining', icon: 'TrendingDown', type: 'EXPENSE' },
+            { id: 'cat_transport', name: 'Transport', icon: 'TrendingDown', type: 'EXPENSE' },
+            { id: 'cat_shopping', name: 'Shopping', icon: 'TrendingDown', type: 'EXPENSE' },
+            { id: 'cat_bills', name: 'Bills', icon: 'TrendingDown', type: 'EXPENSE' },
+            { id: 'cat_entertainment', name: 'Entertainment', icon: 'TrendingDown', type: 'EXPENSE' },
+            { id: 'cat_health', name: 'Health', icon: 'TrendingDown', type: 'EXPENSE' },
+        ];
+
+        // --- STORAGE SERVICE ---
+        const StorageService = {
+            generateId: () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+            get: (key) => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } },
+            set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+            seed: () => {
+                if (!localStorage.getItem('pf_accounts')) {
+                    localStorage.setItem('pf_accounts', JSON.stringify([
+                        { id: 'acc_1', name: 'Main Bank', type: 'BANK', balance: 2500 },
+                        { id: 'acc_2', name: 'Cash', type: 'CASH', balance: 150 },
+                    ]));
+                }
+            },
+            getStart: () => {
+                const def = new Date(); def.setDate(1); def.setHours(0,0,0,0);
+                return localStorage.getItem('pf_dashboard_start') || def.toISOString();
+            },
+            setStart: (d) => localStorage.setItem('pf_dashboard_start', d),
+            getApiKey: () => localStorage.getItem('pf_api_key') || '',
+            setApiKey: (k) => localStorage.setItem('pf_api_key', k)
+        };
+
+        // --- COMPONENTS ---
+
+        const Dashboard = ({ accounts, transactions, stocks }) => {
+            const [viewStartDate, setViewStartDate] = useState(StorageService.getStart());
+            const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+            const handleNewDay = () => {
+                if (window.confirm("Start a New Day? Resets Income/Expense view.")) {
+                    const now = new Date().toISOString();
+                    StorageService.setStart(now);
+                    setViewStartDate(now);
+                }
+            };
+
+            const viewTxns = useMemo(() => transactions.filter(t => t.date >= viewStartDate), [transactions, viewStartDate]);
+            const totalIncome = viewTxns.filter(t => t.type === 'INCOME').reduce((a,c) => a+c.amount,0);
+            const totalExpense = viewTxns.filter(t => t.type === 'EXPENSE').reduce((a,c) => a+c.amount,0);
+            const stockVal = stocks.reduce((a,s) => a+(s.quantity*s.currentPrice),0);
+            const netWorth = accounts.reduce((a,c) => a+c.balance,0) + stockVal;
+
+            const expenseData = useMemo(() => {
+                const grouped = {};
+                viewTxns.filter(t => t.type === 'EXPENSE').forEach(t => {
+                    const name = t.categoryName || PREDEFINED_CATEGORIES.find(c=>c.id===t.categoryId)?.name || 'Other';
+                    grouped[name] = (grouped[name]||0) + t.amount;
+                });
+                return Object.entries(grouped).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value);
+            }, [viewTxns]);
+
+            return (
+                <div className="p-5 space-y-5">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+                            <p className="text-xs text-gray-500">Since {new Date(viewStartDate).toLocaleDateString()}</p>
+                        </div>
+                        <button onClick={handleNewDay} className="flex flex-col items-center p-2 bg-white border rounded-xl shadow-sm">
+                            <Icon name="RotateCcw" size={16} className="text-brand-600 mb-1"/>
+                            <span className="text-[9px] font-bold uppercase">New Day</span>
+                        </button>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-2xl p-6 text-white shadow-lg">
+                        <div className="text-brand-100 text-sm font-medium">Net Worth</div>
+                        <div className="text-4xl font-bold">${Math.floor(netWorth).toLocaleString()}</div>
+                        <div className="mt-4 flex gap-3 text-xs bg-white/20 px-3 py-1.5 rounded-lg w-fit">
+                            <Icon name="TrendingUp" size={14}/> Stocks: ${Math.floor(stockVal).toLocaleString()}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <div className="flex items-center gap-2 text-green-600 mb-1">
+                                <div className="p-1 bg-green-100 rounded-full"><Icon name="TrendingUp" size={14}/></div>
+                                <span className="text-xs font-bold uppercase">Input</span>
+                            </div>
+                            <div className="text-xl font-bold text-gray-800">+${totalIncome.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <div className="flex items-center gap-2 text-red-600 mb-1">
+                                <div className="p-1 bg-red-100 rounded-full"><Icon name="TrendingDown" size={14}/></div>
+                                <span className="text-xs font-bold uppercase">Output</span>
+                            </div>
+                            <div className="text-xl font-bold text-gray-800">-${totalExpense.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    {expenseData.length > 0 ? (
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-64">
+                             <h3 className="text-sm font-bold text-gray-700 mb-2">Spending Breakdown</h3>
+                             <ResponsiveContainer width="100%" height="80%">
+                                <PieChart>
+                                    <Pie data={expenseData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
+                                        {expenseData.map((e,i) => <Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                             </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center text-gray-400 border border-dashed rounded-xl text-sm">No expenses yet.</div>
+                    )}
+                </div>
+            );
+        };
+
+        const Accounts = ({ accounts, onAdd, onDelete }) => {
+            const [modal, setModal] = useState(false);
+            const [name, setName] = useState('');
+            const [bal, setBal] = useState('');
+            const [type, setType] = useState('BANK');
+
+            const save = () => {
+                if(!name || !bal) return;
+                onAdd({ id: StorageService.generateId(), name, balance: parseFloat(bal), type });
+                setModal(false); setName(''); setBal('');
+            };
+
+            const getTypeIcon = (t) => {
+                if(t==='BANK') return <Icon name="Landmark" className="text-blue-500" />;
+                if(t==='CASH') return <Icon name="Banknote" className="text-green-500" />;
+                return <Icon name="Wallet" className="text-purple-500" />;
+            }
+
+            return (
+                <div className="p-5 pb-32">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-bold">Accounts</h1>
+                        <button onClick={()=>setModal(true)} className="flex items-center gap-1 text-sm bg-brand-50 text-brand-600 px-3 py-1.5 rounded-full font-bold">
+                            <Icon name="Plus" size={16}/> New
+                        </button>
+                    </div>
+                    <div className="space-y-4">
+                        {accounts.map(acc => (
+                            <div key={acc.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center border border-gray-100">
+                                        {getTypeIcon(acc.type)}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-900">{acc.name}</h3>
+                                        <p className="text-xs text-gray-500">{acc.type}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-lg">${acc.balance.toLocaleString()}</p>
+                                    <button onClick={()=>onDelete(acc.id)} className="text-xs text-red-400 p-1"><Icon name="Trash2" size={14}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {modal && (
+                        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                                <h2 className="text-xl font-bold mb-4">New Account</h2>
+                                <input className="w-full p-3 bg-gray-50 rounded-lg mb-3 border" placeholder="Name" value={name} onChange={e=>setName(e.target.value)} />
+                                <select className="w-full p-3 bg-gray-50 rounded-lg mb-3 border" value={type} onChange={e=>setType(e.target.value)}>
+                                    <option value="BANK">Bank Account</option>
+                                    <option value="CASH">Cash</option>
+                                    <option value="WALLET">Digital Wallet</option>
+                                </select>
+                                <input className="w-full p-3 bg-gray-50 rounded-lg mb-4 border" type="number" placeholder="Balance" value={bal} onChange={e=>setBal(e.target.value)} />
+                                <div className="flex gap-2">
+                                    <button onClick={()=>setModal(false)} className="flex-1 py-3 rounded-xl bg-gray-100 font-bold">Cancel</button>
+                                    <button onClick={save} className="flex-1 py-3 rounded-xl bg-brand-600 text-white font-bold">Create</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const Transactions = ({ transactions, accounts }) => {
+            const sorted = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+            const getIcon = (t) => {
+                if (t.type === 'INCOME') return <Icon name="ArrowDownLeft" className="text-green-500" />;
+                if (t.type === 'EXPENSE') return <Icon name="ArrowUpRight" className="text-red-500" />;
+                if (t.type === 'TRANSFER') return <Icon name="ArrowRightLeft" className="text-blue-500" />;
+                return <Icon name="TrendingUp" className="text-purple-500" />;
+            };
+
+            return (
+                <div className="p-5 pb-32">
+                    <h1 className="text-2xl font-bold mb-6">History</h1>
+                    <div className="space-y-3">
+                        {sorted.length === 0 && <div className="text-center text-gray-400 py-10">No transactions.</div>}
+                        {sorted.map(t => (
+                            <div key={t.id} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">{getIcon(t)}</div>
+                                    <div>
+                                        <p className="font-bold text-sm text-gray-900">{t.categoryName || t.type}</p>
+                                        <p className="text-xs text-gray-500">{new Date(t.date).toLocaleDateString()} • {t.notes}</p>
+                                    </div>
+                                </div>
+                                <span className={`font-bold ${t.type==='INCOME'?'text-green-600':t.type==='EXPENSE'?'text-red-600':'text-gray-800'}`}>
+                                    {t.type==='INCOME'||t.type==='STOCK_SELL'?'+':'-'}${t.amount.toLocaleString()}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const Stocks = ({ stocks, onUpdate }) => {
+            const [editId, setEditId] = useState(null);
+            const [price, setPrice] = useState('');
+            const total = stocks.reduce((a,s)=>a+(s.quantity*s.currentPrice),0);
+            
+            const handleUpdate = (id) => {
+                if(price) { onUpdate(id, parseFloat(price)); setEditId(null); setPrice(''); }
+            };
+
+            return (
+                <div className="p-5 pb-32">
+                    <div className="mb-6">
+                        <h1 className="text-2xl font-bold">Portfolio</h1>
+                        <p className="text-3xl font-bold text-brand-600">${total.toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-4">
+                        {stocks.map(s => {
+                             const mv = s.quantity * s.currentPrice;
+                             const pl = mv - (s.quantity * s.averageBuyPrice);
+                             return (
+                                 <div key={s.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                     <div className="flex justify-between mb-2">
+                                         <div>
+                                             <h3 className="font-bold text-lg">{s.symbol}</h3>
+                                             <p className="text-xs text-gray-500">{s.quantity} shares</p>
+                                         </div>
+                                         <div className="text-right">
+                                             <div className="font-bold">${mv.toLocaleString()}</div>
+                                             <div className={`text-xs ${pl>=0?'text-green-600':'text-red-600'}`}>{pl>=0?'+':''}{pl.toFixed(2)}</div>
+                                         </div>
+                                     </div>
+                                     <div className="pt-2 border-t flex justify-between items-center mt-2">
+                                         <span className="text-xs font-bold text-gray-400">PRICE</span>
+                                         {editId === s.id ? (
+                                             <div className="flex gap-2">
+                                                 <input className="w-20 bg-gray-50 border rounded p-1 text-right" type="number" value={price} onChange={e=>setPrice(e.target.value)} autoFocus placeholder={s.currentPrice}/>
+                                                 <button onClick={()=>handleUpdate(s.id)} className="bg-brand-600 text-white px-2 rounded text-xs">OK</button>
+                                             </div>
+                                         ) : (
+                                             <button onClick={()=>{setEditId(s.id); setPrice(s.currentPrice)}} className="flex items-center gap-1 text-sm bg-brand-50 text-brand-600 px-2 py-1 rounded">
+                                                 ${s.currentPrice} <Icon name="RefreshCcw" size={12}/>
+                                             </button>
+                                         )}
+                                     </div>
+                                 </div>
+                             );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        const TransactionModal = ({ isOpen, onClose, onSave, accounts, initialData }) => {
+            const [type, setType] = useState('EXPENSE');
+            const [amount, setAmount] = useState('');
+            const [notes, setNotes] = useState('');
+            const [src, setSrc] = useState('');
+            const [dest, setDest] = useState('');
+            const [symbol, setSymbol] = useState('');
+            const [qty, setQty] = useState('');
+            const [price, setPrice] = useState('');
+
+            useEffect(() => {
+                if(isOpen) {
+                    if(initialData) {
+                        setType(initialData.type || 'EXPENSE');
+                        setAmount(initialData.amount || '');
+                        setNotes(initialData.notes || '');
+                        if(initialData.stockSymbol) setSymbol(initialData.stockSymbol);
+                    } else {
+                        setAmount(''); setNotes(''); setSymbol(''); setQty(''); setPrice('');
+                        setSrc(accounts[0]?.id || '');
+                        setDest(accounts[0]?.id || '');
+                    }
+                }
+            }, [isOpen, initialData]);
+
+            if(!isOpen) return null;
+
+            const submit = () => {
+                onSave({
+                    id: StorageService.generateId(),
+                    type,
+                    amount: parseFloat(amount) || (parseFloat(qty)*parseFloat(price)),
+                    date: new Date().toISOString(),
+                    notes,
+                    sourceAccountId: src,
+                    destinationAccountId: dest,
+                    stockSymbol: symbol,
+                    stockQuantity: parseFloat(qty),
+                    stockPrice: parseFloat(price),
+                    categoryName: type === 'EXPENSE' ? 'General Expense' : 'General Income' // Simplification
+                });
+                onClose();
+            };
+
+            const isStock = type.includes('STOCK');
+
+            return (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center backdrop-blur-sm">
+                    <div className="bg-white w-full sm:w-[480px] rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between mb-4">
+                            <h2 className="text-xl font-bold">New Transaction</h2>
+                            <button onClick={onClose}><Icon name="X"/></button>
+                        </div>
+                        
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
+                            {['EXPENSE','INCOME','TRANSFER','STOCK_BUY'].map(t => (
+                                <button key={t} onClick={()=>setType(t)} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap border ${type===t?'bg-brand-600 text-white border-brand-600':'bg-white text-gray-500'}`}>
+                                    {t.replace('_',' ')}
+                                </button>
+                            ))}
+                        </div>
+
+                        {isStock ? (
+                             <div className="space-y-4">
+                                 <input className="w-full p-3 bg-gray-50 border rounded-xl" placeholder="Symbol (e.g. AAPL)" value={symbol} onChange={e=>setSymbol(e.target.value.toUpperCase())} />
+                                 <div className="flex gap-3">
+                                     <input className="w-full p-3 bg-gray-50 border rounded-xl" type="number" placeholder="Qty" value={qty} onChange={e=>setQty(e.target.value)} />
+                                     <input className="w-full p-3 bg-gray-50 border rounded-xl" type="number" placeholder="Price" value={price} onChange={e=>setPrice(e.target.value)} />
+                                 </div>
+                                 <select className="w-full p-3 bg-gray-50 border rounded-xl" value={src} onChange={e=>setSrc(e.target.value)}>
+                                     <option value="">Select Funding Account</option>
+                                     {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                                 </select>
+                             </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="bg-gray-50 border rounded-2xl p-4 flex items-center">
+                                    <span className="text-2xl text-gray-400 mr-2">$</span>
+                                    <input className="bg-transparent text-4xl font-bold w-full outline-none" type="number" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)} autoFocus />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {type !== 'INCOME' && (
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400">FROM</label>
+                                            <select className="w-full p-3 bg-gray-50 border rounded-xl" value={src} onChange={e=>setSrc(e.target.value)}>
+                                                {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+                                    {type !== 'EXPENSE' && (
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400">TO</label>
+                                            <select className="w-full p-3 bg-gray-50 border rounded-xl" value={dest} onChange={e=>setDest(e.target.value)}>
+                                                {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <input className="w-full mt-4 p-3 bg-gray-50 border rounded-xl" placeholder="Notes..." value={notes} onChange={e=>setNotes(e.target.value)} />
+                        
+                        <button onClick={submit} className="w-full mt-6 bg-brand-600 text-white font-bold py-4 rounded-xl shadow-lg">Save</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const AIModal = ({ isOpen, onClose, onParsed }) => {
+            const [input, setInput] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [apiKey, setApiKey] = useState(StorageService.getApiKey());
+            const [showSettings, setShowSettings] = useState(!StorageService.getApiKey());
+
+            if(!isOpen) return null;
+
+            const handleRun = async () => {
+                if(!apiKey) { alert("API Key Required"); setShowSettings(true); return; }
+                setLoading(true);
+                try {
+                    const prompt = `Convert to JSON: ${input}. Fields: type(INCOME/EXPENSE/TRANSFER/STOCK_BUY), amount, notes, stockSymbol, stockQuantity, stockPrice. No markdown.`;
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    const data = await res.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if(text) {
+                        let clean = text.replace(/```json|```/g, '').trim();
+                        onParsed(JSON.parse(clean));
+                        onClose();
+                        setInput('');
+                    }
+                } catch(e) { alert("Error: " + e.message); }
+                setLoading(false);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-2xl">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400"><Icon name="X"/></button>
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600"><Icon name="Sparkles"/></div>
+                            <h2 className="font-bold text-lg">AI Assistant</h2>
+                        </div>
+                        
+                        {showSettings ? (
+                            <div className="mb-4 p-4 bg-gray-50 rounded-xl border">
+                                <label className="block text-xs font-bold mb-2">GEMINI API KEY</label>
+                                <input className="w-full p-2 border rounded bg-white" value={apiKey} onChange={e=>{setApiKey(e.target.value); StorageService.setApiKey(e.target.value)}} placeholder="Enter Key" />
+                                <button onClick={()=>setShowSettings(false)} className="mt-2 text-xs text-brand-600 font-bold">Done</button>
+                            </div>
+                        ) : (
+                            <button onClick={()=>setShowSettings(true)} className="text-[10px] text-gray-400 mb-2 underline">Configure API Key</button>
+                        )}
+
+                        <textarea className="w-full p-3 bg-gray-50 border rounded-xl h-32 mb-4 outline-none" placeholder="e.g. Spent $50 on Groceries" value={input} onChange={e=>setInput(e.target.value)}></textarea>
+                        <button onClick={handleRun} disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                            {loading ? <Icon name="Loader2" className="animate-spin"/> : "Process"}
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [tab, setTab] = useState('dashboard');
+            const [accounts, setAccounts] = useState([]);
+            const [transactions, setTransactions] = useState([]);
+            const [stocks, setStocks] = useState([]);
+            const [addModal, setAddModal] = useState(false);
+            const [aiModal, setAiModal] = useState(false);
+            const [aiData, setAiData] = useState(null);
+
+            useEffect(() => {
+                StorageService.seed();
+                setAccounts(StorageService.get('pf_accounts'));
+                setTransactions(StorageService.get('pf_transactions'));
+                setStocks(StorageService.get('pf_stocks'));
+            }, []);
+
+            const updateData = (key, data, setter) => {
+                setter(data); StorageService.set(key, data);
+            };
+
+            const handleAddTxn = (t) => {
+                updateData('pf_transactions', [...transactions, t], setTransactions);
+                const updatedAccs = accounts.map(a => {
+                    let bal = a.balance;
+                    if(a.id === t.sourceAccountId) bal -= t.amount;
+                    if(a.id === t.destinationAccountId) bal += t.amount;
+                    return {...a, balance: bal};
+                });
+                updateData('pf_accounts', updatedAccs, setAccounts);
+
+                if(t.type === 'STOCK_BUY') {
+                    const exist = stocks.find(s=>s.symbol===t.stockSymbol);
+                    let newStocks;
+                    if(exist) {
+                        newStocks = stocks.map(s=>s.symbol===t.stockSymbol ? {...s, quantity:s.quantity+t.stockQuantity, currentPrice:t.stockPrice} : s);
+                    } else {
+                        newStocks = [...stocks, {id: StorageService.generateId(), symbol:t.stockSymbol, quantity:t.stockQuantity, currentPrice:t.stockPrice, averageBuyPrice:t.stockPrice}];
+                    }
+                    updateData('pf_stocks', newStocks, setStocks);
+                }
+                setAiData(null);
+            };
+
+            const Nav = () => (
+                <div className="fixed bottom-0 w-full bg-white border-t flex justify-around py-2 pb-6 z-40 text-[10px] font-bold text-gray-400">
+                    {[
+                        {id:'dashboard', icon:'LayoutDashboard', l:'Home'},
+                        {id:'accounts', icon:'Wallet', l:'Accounts'},
+                        {id:'transactions', icon:'CreditCard', l:'History'},
+                        {id:'stocks', icon:'TrendingUp', l:'Stocks'}
+                    ].map(i => (
+                        <button key={i.id} onClick={()=>setTab(i.id)} className={`flex flex-col items-center gap-1 w-16 ${tab===i.id?'text-brand-600':''}`}>
+                            <Icon name={i.icon} size={24} strokeWidth={tab===i.id?2.5:2}/>
+                            {i.l}
+                        </button>
+                    ))}
+                </div>
+            );
+
+            return (
+                <div className="h-full flex flex-col">
+                    <main className="flex-1 overflow-y-auto no-scrollbar">
+                        {tab==='dashboard' && <Dashboard accounts={accounts} transactions={transactions} stocks={stocks}/>}
+                        {tab==='accounts' && <Accounts accounts={accounts} onAdd={a=>updateData('pf_accounts', [...accounts, a], setAccounts)} onDelete={id=>updateData('pf_accounts', accounts.filter(a=>a.id!==id), setAccounts)}/>}
+                        {tab==='transactions' && <Transactions transactions={transactions}/>}
+                        {tab==='stocks' && <Stocks stocks={stocks} onUpdate={(id,p)=>updateData('pf_stocks', stocks.map(s=>s.id===id?{...s,currentPrice:p}:s), setStocks)}/>}
+                    </main>
+
+                    <div className="fixed bottom-24 right-5 flex flex-col gap-4 z-50">
+                        <button onClick={()=>setAiModal(true)} className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center border-2 border-white">
+                            <Icon name="Sparkles"/>
+                        </button>
+                        <button onClick={()=>{setAiData(null); setAddModal(true)}} className="w-14 h-14 bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center">
+                            <Icon name="Plus" size={28}/>
+                        </button>
+                    </div>
+
+                    <Nav />
+
+                    <TransactionModal isOpen={addModal} onClose={()=>setAddModal(false)} accounts={accounts} onSave={handleAddTxn} initialData={aiData}/>
+                    <AIModal isOpen={aiModal} onClose={()=>setAiModal(false)} onParsed={d=>{setAiData(d); setAddModal(true)}}/>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
-    
-    <!-- Vite Entry Point -->
-    <script type="module" src="/index.tsx"></script>
-  </body>
+</body>
 </html>
