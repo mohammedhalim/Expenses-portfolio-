@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1055/1055131.png">
 
-    <!-- Tailwind CSS -->
+    <!-- Styles -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -20,54 +20,93 @@
           extend: {
             colors: {
               brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' }
+            },
+            animation: {
+                'slide-up': 'slideUp 0.3s ease-out'
+            },
+            keyframes: {
+                slideUp: {
+                    '0%': { transform: 'translateY(100%)' },
+                    '100%': { transform: 'translateY(0)' }
+                }
             }
           }
         }
       }
     </script>
-
-    <!-- React & Libraries (UMD for Browser) -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
     <style>
-        /* Mobile Optimizations */
         body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        input, select, textarea { font-size: 16px; } /* Prevent zoom on iOS */
+        #error-overlay { display: none; position: fixed; inset: 0; background: white; z-index: 9999; padding: 20px; overflow: auto; color: #ef4444; font-family: monospace; }
     </style>
+
+    <!-- Libraries -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <!-- Recharts pinned to a stable version for UMD -->
+    <script crossorigin src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="importmap">
 {
   "imports": {
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
     "recharts": "https://esm.sh/recharts@^3.6.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
     "vite": "https://esm.sh/vite@^7.3.0"
   }
 }
 </script>
 </head>
 <body class="bg-gray-50 text-gray-900 select-none h-screen overflow-hidden">
-    <div id="root" class="h-full"></div>
+    
+    <!-- Loading / Error UI -->
+    <div id="root" class="h-full">
+        <div class="flex flex-col items-center justify-center h-full gap-4 text-gray-400">
+            <div class="w-8 h-8 border-4 border-gray-200 border-t-brand-600 rounded-full animate-spin"></div>
+            <p class="text-sm font-medium">Loading PocketFinance...</p>
+        </div>
+    </div>
+    <div id="error-overlay"></div>
 
-    <!-- MAIN APPLICATION CODE -->
+    <!-- Error Handler -->
+    <script>
+        window.addEventListener('error', function(e) {
+            document.getElementById('root').style.display = 'none';
+            const overlay = document.getElementById('error-overlay');
+            overlay.style.display = 'block';
+            overlay.innerHTML += '<h3>App Error</h3><pre>' + e.message + '</pre>';
+        });
+        
+        // Register Service Worker for Offline support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW registered'))
+                    .catch(err => console.log('SW failed', err));
+            });
+        }
+    </script>
+
+    <!-- APP LOGIC -->
     <script type="text/babel">
+        // --- SAFE GLOBALS ---
         const { useState, useEffect, useMemo, useRef } = React;
-        const { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } = Recharts;
+        const { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } = window.Recharts || {}; // Safety check
 
-        // --- ICONS (SVG Paths) ---
+        if (!window.Recharts) {
+            throw new Error("Recharts library failed to load. Please check your internet connection.");
+        }
+
+        // --- ICONS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const paths = {
                 LayoutDashboard: "M3 3h7v7H3V3zm11 0h7v7h-7V3zm0 11h7v7h-7v-7zM3 14h7v7H3v-7z",
                 Wallet: "M20 12V8H6a2 2 0 0 1-2-2 2 2 0 0 1 2-2h12v4",
-                WalletFull: "M20 7h-7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-2 7h-2v-2h2v2z", 
                 CreditCard: "M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H3V12h18v6zM3 8V6h18v2H3z",
                 TrendingUp: "M23 6l-9.5 9.5-5-5L1 18",
                 Sparkles: "m12 3-1.9 5.8a2 2 0 0 1-1.2 1.2L3 12l5.8 1.9a2 2 0 0 1 1.2 1.2L12 21l1.9-5.8a2 2 0 0 1 1.2-1.2L21 12l-5.8-1.9a2 2 0 0 1-1.2-1.2L12 3z",
@@ -77,29 +116,15 @@
                 Banknote: "M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm10-4v-4c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2z",
                 Plus: "M12 5v14M5 12h14",
                 X: "M18 6L6 18M6 6l12 12",
-                Pencil: "M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z",
                 Trash2: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
                 ArrowUpRight: "M7 17L17 7M7 7h10v10",
                 ArrowDownLeft: "M17 7L7 17M17 17H7V7",
                 ArrowRightLeft: "M21 7 3 7M3 17l18 0M6 4 3 7l3 3M18 20l3-3-3-3",
-                ArrowDown: "M12 5v14M19 12l-7 7-7-7",
-                Check: "M20 6 9 17l-5-5",
-                RotateCcw: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
-                Loader2: "M21 12a9 9 0 1 1-6.219-8.56"
+                Loader2: "M21 12a9 9 0 1 1-6.219-8.56",
+                Check: "M20 6 9 17l-5-5"
             };
-            const d = paths[name] || "";
             return (
-                <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    width={size} height={size} 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    className={className}
-                >
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                     {name === 'Wallet' ? (
                         <>
                            <path d="M20 12V8H6a2 2 0 0 1-2-2 2 2 0 0 1 2-2h12v4" />
@@ -107,27 +132,25 @@
                            <path d="M18 12a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h4v-8Z" />
                         </>
                     ) : (
-                        <path d={d} />
+                        <path d={paths[name] || ""} />
                     )}
                 </svg>
             );
         };
 
-        // --- TYPES & DATA ---
+        // --- DATA ---
         const PREDEFINED_CATEGORIES = [
-            { id: 'cat_salary', name: 'Salary', icon: 'Wallet', type: 'INCOME' },
-            { id: 'cat_freelance', name: 'Freelance', icon: 'LayoutDashboard', type: 'INCOME' },
-            { id: 'cat_food', name: 'Food & Dining', icon: 'TrendingDown', type: 'EXPENSE' },
-            { id: 'cat_transport', name: 'Transport', icon: 'TrendingDown', type: 'EXPENSE' },
-            { id: 'cat_shopping', name: 'Shopping', icon: 'TrendingDown', type: 'EXPENSE' },
-            { id: 'cat_bills', name: 'Bills', icon: 'TrendingDown', type: 'EXPENSE' },
-            { id: 'cat_entertainment', name: 'Entertainment', icon: 'TrendingDown', type: 'EXPENSE' },
-            { id: 'cat_health', name: 'Health', icon: 'TrendingDown', type: 'EXPENSE' },
+            { id: 'cat_salary', name: 'Salary', type: 'INCOME' },
+            { id: 'cat_freelance', name: 'Freelance', type: 'INCOME' },
+            { id: 'cat_food', name: 'Food & Dining', type: 'EXPENSE' },
+            { id: 'cat_transport', name: 'Transport', type: 'EXPENSE' },
+            { id: 'cat_shopping', name: 'Shopping', type: 'EXPENSE' },
+            { id: 'cat_bills', name: 'Bills', type: 'EXPENSE' },
+            { id: 'cat_health', name: 'Health', type: 'EXPENSE' },
         ];
 
-        // --- STORAGE SERVICE ---
         const StorageService = {
-            generateId: () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+            generateId: () => Math.random().toString(36).substring(2, 9),
             get: (key) => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } },
             set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
             seed: () => {
@@ -184,7 +207,7 @@
                             <p className="text-xs text-gray-500">Since {new Date(viewStartDate).toLocaleDateString()}</p>
                         </div>
                         <button onClick={handleNewDay} className="flex flex-col items-center p-2 bg-white border rounded-xl shadow-sm">
-                            <Icon name="RotateCcw" size={16} className="text-brand-600 mb-1"/>
+                            <Icon name="RefreshCcw" size={16} className="text-brand-600 mb-1"/>
                             <span className="text-[9px] font-bold uppercase">New Day</span>
                         </button>
                     </div>
@@ -280,7 +303,7 @@
                     </div>
 
                     {modal && (
-                        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-slide-up">
                             <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
                                 <h2 className="text-xl font-bold mb-4">New Account</h2>
                                 <input className="w-full p-3 bg-gray-50 rounded-lg mb-3 border" placeholder="Name" value={name} onChange={e=>setName(e.target.value)} />
@@ -301,7 +324,7 @@
             );
         };
 
-        const Transactions = ({ transactions, accounts }) => {
+        const Transactions = ({ transactions }) => {
             const sorted = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
             const getIcon = (t) => {
                 if (t.type === 'INCOME') return <Icon name="ArrowDownLeft" className="text-green-500" />;
@@ -425,7 +448,7 @@
                     stockSymbol: symbol,
                     stockQuantity: parseFloat(qty),
                     stockPrice: parseFloat(price),
-                    categoryName: type === 'EXPENSE' ? 'General Expense' : 'General Income' // Simplification
+                    categoryName: type === 'EXPENSE' ? 'General Expense' : 'General Income' 
                 });
                 onClose();
             };
@@ -433,8 +456,8 @@
             const isStock = type.includes('STOCK');
 
             return (
-                <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center backdrop-blur-sm">
-                    <div className="bg-white w-full sm:w-[480px] rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center backdrop-blur-sm animate-slide-up">
+                    <div className="bg-white w-full sm:w-[480px] rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between mb-4">
                             <h2 className="text-xl font-bold">New Transaction</h2>
                             <button onClick={onClose}><Icon name="X"/></button>
@@ -508,6 +531,7 @@
                 setLoading(true);
                 try {
                     const prompt = `Convert to JSON: ${input}. Fields: type(INCOME/EXPENSE/TRANSFER/STOCK_BUY), amount, notes, stockSymbol, stockQuantity, stockPrice. No markdown.`;
+                    // Direct Fetch to avoid SDK issues in browser
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -519,13 +543,15 @@
                         onParsed(JSON.parse(clean));
                         onClose();
                         setInput('');
+                    } else {
+                        throw new Error("No response from AI");
                     }
                 } catch(e) { alert("Error: " + e.message); }
                 setLoading(false);
             };
 
             return (
-                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-slide-up">
                     <div className="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-2xl">
                         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400"><Icon name="X"/></button>
                         <div className="flex items-center gap-2 mb-4">
