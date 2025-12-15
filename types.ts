@@ -1,4 +1,4 @@
-export type AccountType = 'BANK' | 'WALLET' | 'CASH' | 'STOCK_FUND';
+export type AccountType = 'BANK' | 'WALLET' | 'CASH' | 'PORTFOLIO' | 'STOCK_PORTFOLIO';
 
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'STOCK_BUY' | 'STOCK_SELL';
 

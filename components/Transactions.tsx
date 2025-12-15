@@ -1,6 +1,6 @@
 import React from 'react';
-import { Transaction, Account, PREDEFINED_CATEGORIES } from '../types';
-import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft, TrendingUp } from 'lucide-react';
+import { Transaction, Account, PREDEFINED_CATEGORIES, TransactionType } from '../types';
+import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft, TrendingUp, TrendingDown, ShoppingBag } from 'lucide-react';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -13,11 +13,15 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, accounts }) =
 
   const getAccountName = (id?: string) => accounts.find(a => a.id === id)?.name || 'Unknown';
 
-  const getIcon = (t: Transaction) => {
-    if (t.type === 'INCOME') return <ArrowDownLeft className="text-green-500" />;
-    if (t.type === 'EXPENSE') return <ArrowUpRight className="text-red-500" />;
-    if (t.type === 'TRANSFER') return <ArrowRightLeft className="text-blue-500" />;
-    return <TrendingUp className="text-purple-500" />;
+  const getTxnStyle = (type: TransactionType) => {
+    switch(type) {
+        case 'INCOME': return { Icon: ArrowDownLeft, bg: 'bg-green-100', text: 'text-green-600' };
+        case 'EXPENSE': return { Icon: ArrowUpRight, bg: 'bg-red-100', text: 'text-red-600' };
+        case 'TRANSFER': return { Icon: ArrowRightLeft, bg: 'bg-blue-100', text: 'text-blue-600' };
+        case 'STOCK_BUY': return { Icon: TrendingUp, bg: 'bg-indigo-100', text: 'text-indigo-600' };
+        case 'STOCK_SELL': return { Icon: TrendingDown, bg: 'bg-orange-100', text: 'text-orange-600' };
+        default: return { Icon: ShoppingBag, bg: 'bg-gray-100', text: 'text-gray-600' };
+    }
   };
 
   const getCategoryName = (t: Transaction) => {
@@ -29,47 +33,52 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, accounts }) =
     <div className="p-5">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">History</h1>
       
-      <div className="space-y-3">
+      <div className="space-y-4">
         {sortedTransactions.length === 0 && (
-          <div className="text-center text-gray-400 py-10">
-            No transactions yet. Tap + to add one.
+          <div className="text-center text-gray-400 py-16 bg-white rounded-2xl border border-dashed border-gray-200">
+            <p className="mb-2 font-bold text-gray-300">No transactions recorded</p>
+            <p className="text-xs">Tap the + button to add one.</p>
           </div>
         )}
         
-        {sortedTransactions.map(t => (
-          <div key={t.id} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gray-50`}>
-                {getIcon(t)}
+        {sortedTransactions.map(t => {
+          const { Icon, bg, text } = getTxnStyle(t.type);
+          
+          return (
+            <div key={t.id} className="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between transition-transform active:scale-[0.99]">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${bg} ${text} shadow-sm`}>
+                  <Icon size={20} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-gray-900 capitalize leading-tight">
+                    {t.type === 'STOCK_BUY' ? `Buy ${t.stockSymbol}` : 
+                     t.type === 'STOCK_SELL' ? `Sell ${t.stockSymbol}` :
+                     t.type === 'TRANSFER' ? 'Transfer' :
+                     getCategoryName(t)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                    {new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} • {t.notes || t.type.replace('_', ' ').toLowerCase()}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-sm text-gray-900 capitalize">
-                  {t.type === 'STOCK_BUY' ? `Buy ${t.stockSymbol}` : 
-                   t.type === 'STOCK_SELL' ? `Sell ${t.stockSymbol}` :
-                   t.type === 'TRANSFER' ? 'Transfer' :
-                   getCategoryName(t)}
+              <div className="text-right">
+                <p className={`font-bold text-base ${
+                  t.type === 'INCOME' || t.type === 'STOCK_SELL' ? 'text-green-600' : 
+                  t.type === 'EXPENSE' || t.type === 'STOCK_BUY' ? 'text-red-600' : 'text-gray-900'
+                }`}>
+                  {t.type === 'INCOME' || t.type === 'STOCK_SELL' ? '+' : '-'}
+                  ${t.amount.toLocaleString()}
                 </p>
-                <p className="text-xs text-gray-500">
-                  {new Date(t.date).toLocaleDateString()} • {t.notes || t.type.replace('_', ' ').toLowerCase()}
-                </p>
+                {t.type === 'TRANSFER' && (
+                  <p className="text-[10px] text-gray-400 font-medium">
+                    {getAccountName(t.sourceAccountId)} → {getAccountName(t.destinationAccountId)}
+                  </p>
+                )}
               </div>
             </div>
-            <div className="text-right">
-              <p className={`font-bold ${
-                t.type === 'INCOME' || t.type === 'STOCK_SELL' ? 'text-green-600' : 
-                t.type === 'EXPENSE' || t.type === 'STOCK_BUY' ? 'text-red-600' : 'text-gray-900'
-              }`}>
-                {t.type === 'INCOME' || t.type === 'STOCK_SELL' ? '+' : '-'}
-                ${t.amount.toLocaleString()}
-              </p>
-              {t.type === 'TRANSFER' && (
-                <p className="text-[10px] text-gray-400">
-                  {getAccountName(t.sourceAccountId)} → {getAccountName(t.destinationAccountId)}
-                </p>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

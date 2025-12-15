@@ -136,7 +136,8 @@
                 ArrowRightLeft: "M21 7 3 7M3 17l18 0M6 4 3 7l3 3M18 20l3-3-3-3",
                 Loader2: "M21 12a9 9 0 1 1-6.219-8.56",
                 Check: "M20 6 9 17l-5-5",
-                AlertCircle: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                AlertCircle: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+                ArrowDown: "M12 5v14M19 12l-7 7-7-7"
             };
             return (
                 <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -431,7 +432,7 @@
             );
         };
 
-        const TransactionModal = ({ isOpen, onClose, onSave, accounts, initialData }) => {
+        const TransactionModal = ({ isOpen, onClose, onSave, accounts, stocks, initialData }) => {
             const [type, setType] = useState('EXPENSE');
             const [amount, setAmount] = useState('');
             const [notes, setNotes] = useState('');
@@ -450,19 +451,49 @@
                         if(initialData.stockSymbol) setSymbol(initialData.stockSymbol);
                     } else {
                         setAmount(''); setNotes(''); setSymbol(''); setQty(''); setPrice('');
+                        // Smart default: If accounts exist, set src for Expense, dest for Income
                         setSrc(accounts[0]?.id || '');
                         setDest(accounts[0]?.id || '');
                     }
                 }
-            }, [isOpen, initialData]);
+            }, [isOpen, initialData, accounts]);
 
             if(!isOpen) return null;
 
             const submit = () => {
+                // Strict Source/Dest Validation
+                if (type === 'EXPENSE') {
+                    if (!src) { alert("Transaction Cancelled: You must specify the Source Account (Where is the money coming from?)."); return; }
+                } else if (type === 'INCOME') {
+                    if (!dest) { alert("Transaction Cancelled: You must specify the Destination Account (Where is the money going?)."); return; }
+                } else if (type === 'TRANSFER') {
+                    if (!src) { alert("Transaction Cancelled: You must specify the Source Account."); return; }
+                    if (!dest) { alert("Transaction Cancelled: You must specify the Destination Account."); return; }
+                    if (src === dest) { alert("Transaction Cancelled: Source and Destination cannot be the same."); return; }
+                } else if (type === 'STOCK_BUY') {
+                    if (!src) { alert("Transaction Cancelled: You must specify the Funding Account."); return; }
+                } else if (type === 'STOCK_SELL') {
+                    if (!dest) { alert("Transaction Cancelled: You must specify where the funds should be deposited."); return; }
+                }
+
+                // Logic validation for Stock Sell
+                if (type === 'STOCK_SELL') {
+                    if (!symbol) { alert('Please select a stock to sell.'); return; }
+                    const holding = stocks.find(s => s.symbol === symbol);
+                    if (!holding) { alert('You do not own this stock.'); return; }
+                    const q = parseFloat(qty);
+                    if (!q || q <= 0) { alert('Invalid quantity.'); return; }
+                    if (q > holding.quantity) { alert(`You only have ${holding.quantity} shares available.`); return; }
+                }
+
+                // Amount validation
+                const val = parseFloat(amount) || (parseFloat(qty)*parseFloat(price));
+                if (!val || val <= 0) { alert('Please enter a valid amount.'); return; }
+
                 onSave({
                     id: StorageService.generateId(),
                     type,
-                    amount: parseFloat(amount) || (parseFloat(qty)*parseFloat(price)),
+                    amount: val,
                     date: new Date().toISOString(),
                     notes,
                     sourceAccountId: src,
@@ -476,6 +507,7 @@
             };
 
             const isStock = type.includes('STOCK');
+            const selectedStock = type === 'STOCK_SELL' ? stocks?.find(s => s.symbol === symbol) : null;
 
             return (
                 <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center backdrop-blur-sm animate-slide-up">
@@ -486,55 +518,103 @@
                         </div>
                         
                         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
-                            {['EXPENSE','INCOME','TRANSFER','STOCK_BUY'].map(t => (
-                                <button key={t} onClick={()=>setType(t)} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap border ${type===t?'bg-brand-600 text-white border-brand-600':'bg-white text-gray-500'}`}>
+                            {['EXPENSE','INCOME','TRANSFER','STOCK_BUY','STOCK_SELL'].map(t => (
+                                <button key={t} 
+                                    onClick={()=>{ 
+                                        setType(t); 
+                                        setSymbol(''); 
+                                        setQty('');
+                                    }} 
+                                    className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap border ${type===t?'bg-brand-600 text-white border-brand-600':'bg-white text-gray-500'}`}>
                                     {t.replace('_',' ')}
                                 </button>
                             ))}
                         </div>
 
+                        {/* Amount / Stock Details */}
                         {isStock ? (
-                             <div className="space-y-4">
-                                 <input className="w-full p-3 bg-gray-50 border rounded-xl" placeholder="Symbol (e.g. AAPL)" value={symbol} onChange={e=>setSymbol(e.target.value.toUpperCase())} />
+                             <div className="space-y-4 mb-4">
+                                 {type === 'STOCK_SELL' ? (
+                                     <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100">
+                                        <label className="text-xs font-bold text-gray-500 block mb-1">STOCK TO SELL</label>
+                                        <select className="w-full p-2 bg-white border rounded-lg font-bold" value={symbol} onChange={e=>setSymbol(e.target.value)}>
+                                            <option value="">Select Stock</option>
+                                            {stocks.map(s => (
+                                                <option key={s.id} value={s.symbol}>{s.symbol} (Owned: {s.quantity})</option>
+                                            ))}
+                                        </select>
+                                     </div>
+                                 ) : (
+                                     <input className="w-full p-3 bg-gray-50 border rounded-xl uppercase font-bold" placeholder="Symbol (e.g. AAPL)" value={symbol} onChange={e=>setSymbol(e.target.value.toUpperCase())} />
+                                 )}
+                                 
                                  <div className="flex gap-3">
-                                     <input className="w-full p-3 bg-gray-50 border rounded-xl" type="number" placeholder="Qty" value={qty} onChange={e=>setQty(e.target.value)} />
-                                     <input className="w-full p-3 bg-gray-50 border rounded-xl" type="number" placeholder="Price" value={price} onChange={e=>setPrice(e.target.value)} />
+                                     <div className="flex-1">
+                                        <input className="w-full p-3 bg-gray-50 border rounded-xl" type="number" placeholder="Qty" value={qty} onChange={e=>setQty(e.target.value)} />
+                                        {selectedStock && <p className="text-[10px] text-gray-500 mt-1 ml-1">Max: {selectedStock.quantity}</p>}
+                                     </div>
+                                     <div className="flex-1">
+                                        <input className="w-full p-3 bg-gray-50 border rounded-xl" type="number" placeholder="Price" value={price} onChange={e=>setPrice(e.target.value)} />
+                                     </div>
                                  </div>
-                                 <select className="w-full p-3 bg-gray-50 border rounded-xl" value={src} onChange={e=>setSrc(e.target.value)}>
-                                     <option value="">Select Funding Account</option>
-                                     {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-                                 </select>
                              </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-4 mb-4">
                                 <div className="bg-gray-50 border rounded-2xl p-4 flex items-center">
                                     <span className="text-2xl text-gray-400 mr-2">$</span>
                                     <input className="bg-transparent text-4xl font-bold w-full outline-none" type="number" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)} autoFocus />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    {type !== 'INCOME' && (
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-400">FROM</label>
-                                            <select className="w-full p-3 bg-gray-50 border rounded-xl" value={src} onChange={e=>setSrc(e.target.value)}>
-                                                {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-                                            </select>
-                                        </div>
-                                    )}
-                                    {type !== 'EXPENSE' && (
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-400">TO</label>
-                                            <select className="w-full p-3 bg-gray-50 border rounded-xl" value={dest} onChange={e=>setDest(e.target.value)}>
-                                                {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-                                            </select>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         )}
 
-                        <input className="w-full mt-4 p-3 bg-gray-50 border rounded-xl" placeholder="Notes..." value={notes} onChange={e=>setNotes(e.target.value)} />
+                        {/* FLOW SECTION: FROM -> TO */}
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
+                             <div className="space-y-4 relative">
+                                {/* Vertical Line for Flow */}
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 w-0.5 h-12 bg-gray-200 hidden sm:block"></div>
+
+                                {/* FROM SECTION */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">FROM (Source)</label>
+                                    {type === 'INCOME' ? (
+                                        <div className="p-3 bg-white border rounded-xl text-gray-400 text-sm font-medium italic">External Source / Income</div>
+                                    ) : type === 'STOCK_SELL' ? (
+                                        <div className="p-3 bg-white border rounded-xl text-brand-600 font-bold text-sm">Stock Portfolio</div>
+                                    ) : (
+                                        <select className="w-full p-3 bg-white border border-gray-200 rounded-xl font-medium text-gray-800" value={src} onChange={e=>setSrc(e.target.value)}>
+                                            <option value="">Select Account</option>
+                                            {accounts.map(a=><option key={a.id} value={a.id}>{a.name} (${a.balance})</option>)}
+                                        </select>
+                                    )}
+                                </div>
+
+                                {/* Arrow Indicator */}
+                                <div className="flex justify-center -my-2 relative z-10">
+                                    <div className="bg-white border border-gray-200 rounded-full p-1 text-gray-400 shadow-sm">
+                                        <Icon name="ArrowDown" size={14}/>
+                                    </div>
+                                </div>
+
+                                {/* TO SECTION */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">TO (Destination)</label>
+                                    {type === 'EXPENSE' ? (
+                                        <div className="p-3 bg-white border rounded-xl text-gray-400 text-sm font-medium italic">Merchant / Category</div>
+                                    ) : type === 'STOCK_BUY' ? (
+                                        <div className="p-3 bg-white border rounded-xl text-brand-600 font-bold text-sm">Stock Portfolio</div>
+                                    ) : (
+                                        <select className="w-full p-3 bg-white border border-gray-200 rounded-xl font-medium text-gray-800" value={dest} onChange={e=>setDest(e.target.value)}>
+                                            <option value="">Select Account</option>
+                                            {accounts.map(a=><option key={a.id} value={a.id}>{a.name} (${a.balance})</option>)}
+                                        </select>
+                                    )}
+                                </div>
+                             </div>
+                        </div>
+
+                        <input className="w-full p-3 bg-gray-50 border rounded-xl text-sm" placeholder="Notes (Optional)..." value={notes} onChange={e=>setNotes(e.target.value)} />
                         
-                        <button onClick={submit} className="w-full mt-6 bg-brand-600 text-white font-bold py-4 rounded-xl shadow-lg">Save</button>
+                        <button onClick={submit} className="w-full mt-6 bg-brand-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-brand-700 transition-colors">Confirm Transaction</button>
                     </div>
                 </div>
             );
@@ -639,6 +719,18 @@
                         newStocks = [...stocks, {id: StorageService.generateId(), symbol:t.stockSymbol, quantity:t.stockQuantity, currentPrice:t.stockPrice, averageBuyPrice:t.stockPrice}];
                     }
                     updateData('pf_stocks', newStocks, setStocks);
+                } else if (t.type === 'STOCK_SELL') {
+                     const exist = stocks.find(s=>s.symbol===t.stockSymbol);
+                     if(exist) {
+                         const newQty = exist.quantity - t.stockQuantity;
+                         let newStocks;
+                         if(newQty <= 0) {
+                             newStocks = stocks.filter(s => s.symbol !== t.stockSymbol);
+                         } else {
+                             newStocks = stocks.map(s => s.symbol === t.stockSymbol ? {...s, quantity: newQty} : s);
+                         }
+                         updateData('pf_stocks', newStocks, setStocks);
+                     }
                 }
                 setAiData(null);
             };
@@ -679,7 +771,7 @@
 
                     <Nav />
 
-                    <TransactionModal isOpen={addModal} onClose={()=>setAddModal(false)} accounts={accounts} onSave={handleAddTxn} initialData={aiData}/>
+                    <TransactionModal isOpen={addModal} onClose={()=>setAddModal(false)} accounts={accounts} stocks={stocks} onSave={handleAddTxn} initialData={aiData}/>
                     <AIModal isOpen={aiModal} onClose={()=>setAiModal(false)} onParsed={d=>{setAiData(d); setAddModal(true)}}/>
                 </div>
             );

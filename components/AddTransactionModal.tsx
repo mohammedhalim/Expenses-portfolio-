@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TransactionType, Account, PREDEFINED_CATEGORIES, Transaction, StockHolding } from '../types';
-import { X, Check, ArrowDown } from 'lucide-react';
+import { X, Check, ArrowDown, Calculator, Wallet } from 'lucide-react';
 import { generateId } from '../services/storageService';
 
 interface AddTransactionModalProps {
@@ -98,7 +98,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
         if (sourceAccountId === destAccountId) { alert("Source and destination accounts cannot be the same."); return; }
     } 
     else if (type === 'STOCK_BUY') {
-        if (!sourceAccountId) { alert("Please specify the source account (From) used to buy the stocks."); return; }
+        if (!sourceAccountId) { alert("Please specify the Funding Account (Source) to pay for this purchase."); return; }
     } 
     else if (type === 'STOCK_SELL') {
         if (!destAccountId) { alert("Please specify the destination account (To) for the sale proceeds."); return; }
@@ -140,13 +140,18 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
     } else if (type === 'TRANSFER') {
       txn.sourceAccountId = sourceAccountId;
       txn.destinationAccountId = destAccountId;
-    } else if (type === 'STOCK_BUY' || type === 'STOCK_SELL') {
+    } else if (type === 'STOCK_BUY') {
       txn.stockSymbol = stockSymbol.toUpperCase();
       txn.stockQuantity = numericQty;
       txn.stockPrice = numericPrice;
-      
-      if (type === 'STOCK_BUY') txn.sourceAccountId = sourceAccountId;
-      else txn.destinationAccountId = destAccountId;
+      txn.sourceAccountId = sourceAccountId;
+      txn.destinationAccountId = undefined; // STRICTLY NO DESTINATION
+    } else if (type === 'STOCK_SELL') {
+      txn.stockSymbol = stockSymbol.toUpperCase();
+      txn.stockQuantity = numericQty;
+      txn.stockPrice = numericPrice;
+      txn.destinationAccountId = destAccountId;
+      txn.sourceAccountId = undefined; // Sell is a source in itself, but we map proceeds to dest.
     }
 
     onSave(txn);
@@ -175,6 +180,9 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
   const inputClass = "w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white text-gray-900 placeholder-gray-400 transition-colors";
   const labelClass = "block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1";
   const selectedStock = stocks.find(s => s.symbol === stockSymbol);
+  
+  // Find selected account names for display
+  const sourceAccount = accounts.find(a => a.id === sourceAccountId);
 
   const renderAccountSelect = (val: string, setVal: (v: string) => void, label: string) => (
     <select 
@@ -182,8 +190,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
       onChange={e => setVal(e.target.value)}
       className={inputClass}
     >
-      <option value="" disabled>Select Account</option>
-      {accounts.map(a => <option key={a.id} value={a.id}>{a.name} (${a.balance.toLocaleString()})</option>)}
+      <option value="" disabled>Select {label}</option>
+      {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.type}) - ${a.balance.toLocaleString()}</option>)}
     </select>
   );
 
@@ -267,8 +275,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
         <div className="space-y-6 flex-1">
           {/* VALUE SECTION */}
           {type.includes('STOCK') ? (
-             <div className="grid grid-cols-2 gap-4">
-               <div className="col-span-2">
+             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-4">
+               <div>
                  <label className={labelClass}>Stock Symbol</label>
                  {type === 'STOCK_SELL' ? (
                    <div className="relative">
@@ -301,33 +309,51 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                    />
                  )}
                </div>
-               <div>
-                 <label className={labelClass}>Quantity</label>
-                 <input 
-                   type="number" 
-                   value={stockQty} 
-                   onChange={e => setStockQty(e.target.value)} 
-                   placeholder="0" 
-                   className={inputClass}
-                   max={type === 'STOCK_SELL' ? selectedStock?.quantity : undefined}
-                 />
-                 {type === 'STOCK_SELL' && selectedStock && (
-                   <p className="text-[10px] text-gray-400 mt-1 ml-1">Max: {selectedStock.quantity}</p>
+               
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <label className={labelClass}>Quantity</label>
+                     <input 
+                       type="number" 
+                       value={stockQty} 
+                       onChange={e => setStockQty(e.target.value)} 
+                       placeholder="0" 
+                       className={inputClass}
+                       max={type === 'STOCK_SELL' ? selectedStock?.quantity : undefined}
+                     />
+                     {type === 'STOCK_SELL' && selectedStock && (
+                       <p className="text-[10px] text-gray-400 mt-1 ml-1">Max: {selectedStock.quantity}</p>
+                     )}
+                  </div>
+                  <div>
+                     <label className={labelClass}>Price per share</label>
+                     <input 
+                       type="number" 
+                       value={stockPrice} 
+                       onChange={e => setStockPrice(e.target.value)} 
+                       placeholder="0.00" 
+                       className={inputClass}
+                     />
+                  </div>
+               </div>
+
+               {/* CALCULATED TOTAL CARD */}
+               <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm space-y-2">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-gray-500">
+                        <Calculator size={16}/>
+                        <span className="text-xs font-bold uppercase">Total Cost</span>
+                    </div>
+                    <span className="text-xl font-bold text-gray-900">
+                        ${((parseFloat(stockQty) || 0) * (parseFloat(stockPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                 </div>
+                 {type === 'STOCK_BUY' && sourceAccount && (
+                    <div className="flex items-center gap-1.5 text-xs text-brand-600 font-medium bg-brand-50 p-2 rounded">
+                        <Wallet size={12}/>
+                        <span>Deducting from: <b>{sourceAccount.name}</b></span>
+                    </div>
                  )}
-               </div>
-               <div>
-                 <label className={labelClass}>Price per share</label>
-                 <input 
-                   type="number" 
-                   value={stockPrice} 
-                   onChange={e => setStockPrice(e.target.value)} 
-                   placeholder="0.00" 
-                   className={inputClass}
-                 />
-               </div>
-               <div className="col-span-2 text-right p-2 bg-gray-50 rounded-lg border border-gray-100">
-                 <span className="text-xs text-gray-500 uppercase font-bold mr-2">Total Value</span>
-                 <span className="text-lg font-bold text-gray-900">${((parseFloat(stockQty) || 0) * (parseFloat(stockPrice) || 0)).toLocaleString()}</span>
                </div>
              </div>
           ) : (
@@ -361,10 +387,10 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                  type === 'STOCK_SELL' ? (
                    <div className="p-3 bg-white border border-gray-200 rounded-xl text-gray-600 font-medium flex justify-between items-center">
                      <span>Stock Portfolio</span>
-                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">{stockSymbol || 'Select Symbol'}</span>
+                     <span className="text-xs bg-gray-100 px-2 py-1 rounded font-bold uppercase">{stockSymbol || 'Select Symbol'}</span>
                    </div>
                  ) :
-                 renderAccountSelect(sourceAccountId, setSourceAccountId, 'From Account')
+                 renderAccountSelect(sourceAccountId, setSourceAccountId, type === 'STOCK_BUY' ? 'Funding Account' : 'From Account')
                 }
               </div>
 
@@ -384,7 +410,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                  type === 'STOCK_BUY' ? (
                    <div className="p-3 bg-white border border-gray-200 rounded-xl text-gray-600 font-medium flex justify-between items-center">
                      <span>Stock Portfolio</span>
-                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">{stockSymbol || 'Enter Symbol'}</span>
+                     <span className="text-xs bg-gray-100 px-2 py-1 rounded font-bold uppercase">{stockSymbol || 'Enter Symbol'}</span>
                    </div>
                  ) :
                  renderAccountSelect(destAccountId, setDestAccountId, 'To Account')

@@ -61,18 +61,25 @@ const App: React.FC = () => {
     StorageService.saveTransactions(updatedTxns);
 
     // 2. Update Account Balances
+    const txnAmount = Number(txn.amount);
+
     const updatedAccounts = accounts.map(acc => {
-      let newBalance = acc.balance;
+      let newBalance = Number(acc.balance);
       
-      // If money leaves this account
-      if (txn.sourceAccountId === acc.id) {
-         newBalance -= txn.amount;
+      // STRICT TYPE LOGIC
+      // DEDUCTIONS
+      if (['EXPENSE', 'TRANSFER', 'STOCK_BUY'].includes(txn.type)) {
+         if (txn.sourceAccountId && txn.sourceAccountId === acc.id) {
+             newBalance = newBalance - txnAmount;
+         }
       }
       
-      // If money enters this account
-      if (txn.destinationAccountId === acc.id) {
-         // For Stock Sell, txn.amount is the total proceeds
-         newBalance += txn.amount; 
+      // ADDITIONS (CREDITS)
+      // STOCK_BUY is strictly excluded from here
+      if (['INCOME', 'TRANSFER', 'STOCK_SELL'].includes(txn.type)) {
+         if (txn.destinationAccountId && txn.destinationAccountId === acc.id) {
+             newBalance = newBalance + txnAmount; 
+         }
       }
       
       return { ...acc, balance: newBalance };
@@ -87,13 +94,15 @@ const App: React.FC = () => {
       
       if (existingStock) {
         // Calculate new weighted average price
-        const totalCost = (existingStock.quantity * existingStock.averageBuyPrice) + txn.amount;
+        // (Old Qty * Old Avg) + (New Qty * New Price) / Total Qty
+        const currentTotalCost = existingStock.quantity * existingStock.averageBuyPrice;
+        const additionalCost = txnAmount;
         const totalQty = existingStock.quantity + (txn.stockQuantity || 0);
         
         updatedStocks = stocks.map(s => s.symbol === txn.stockSymbol ? {
           ...s,
           quantity: totalQty,
-          averageBuyPrice: totalCost / totalQty,
+          averageBuyPrice: (currentTotalCost + additionalCost) / totalQty,
           currentPrice: txn.stockPrice || s.currentPrice
         } : s);
       } else {
@@ -101,7 +110,7 @@ const App: React.FC = () => {
         const newStock: StockHolding = {
           id: generateId(),
           symbol: txn.stockSymbol!,
-          name: txn.stockSymbol!,
+          name: txn.stockSymbol!, // Simple name mapping for now
           quantity: txn.stockQuantity!,
           averageBuyPrice: txn.stockPrice!,
           currentPrice: txn.stockPrice!
@@ -115,7 +124,7 @@ const App: React.FC = () => {
       const updatedStocks = stocks.map(s => {
         if (s.symbol === txn.stockSymbol) {
           const remaining = s.quantity - (txn.stockQuantity || 0);
-          return remaining > 0 ? { ...s, quantity: remaining } : null; // Remove if 0? Or keep with 0? Let's remove for simplicity if 0
+          return remaining > 0 ? { ...s, quantity: remaining } : null; 
         }
         return s;
       }).filter(Boolean) as StockHolding[];
