@@ -1,15 +1,14 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Wallet, CreditCard, TrendingUp, Sparkles, Plus } from 'lucide-react';
+import { LayoutDashboard, Wallet, CreditCard, TrendingUp, Plus } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onAddClick: () => void;
-  onAIClick: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onAddClick, onAIClick }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onAddClick }) => {
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'accounts', label: 'Accounts', icon: Wallet },
@@ -26,15 +25,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onAdd
 
       {/* Floating Action Buttons */}
       <div className="fixed bottom-24 right-5 flex flex-col items-center gap-4 z-50">
-        {/* AI Assistant Button */}
-        <button
-          onClick={onAIClick}
-          className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-200 flex items-center justify-center hover:bg-indigo-700 transition-all active:scale-95 border-2 border-white"
-          title="AI Assistant"
-        >
-          <Sparkles size={22} strokeWidth={2.5} />
-        </button>
-
         {/* Add Transaction Button */}
         <button
           onClick={onAddClick}

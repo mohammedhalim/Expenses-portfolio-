@@ -5,15 +5,12 @@ import Accounts from './components/Accounts';
 import Transactions from './components/Transactions';
 import Stocks from './components/Stocks';
 import AddTransactionModal from './components/AddTransactionModal';
-import AIAssistantModal from './components/AIAssistantModal';
 import { StorageService, generateId } from './services/storageService';
 import { Account, StockHolding, Transaction } from './types';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  const [aiPreFilledData, setAiPreFilledData] = useState<Partial<Transaction> | null>(null);
   
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -52,6 +49,11 @@ const App: React.FC = () => {
     const updated = stocks.map(s => s.id === id ? { ...s, currentPrice: newPrice } : s);
     setStocks(updated);
     StorageService.saveStocks(updated);
+  };
+
+  const handleClearHistory = () => {
+    setTransactions([]);
+    StorageService.saveTransactions([]);
   };
 
   const handleAddTransaction = (txn: Transaction) => {
@@ -132,21 +134,13 @@ const App: React.FC = () => {
       setStocks(updatedStocks);
       StorageService.saveStocks(updatedStocks);
     }
-    
-    // Clear AI Data
-    setAiPreFilledData(null);
-  };
-
-  const handleAIParse = (data: Partial<Transaction>) => {
-    setAiPreFilledData(data);
-    setIsAddModalOpen(true);
   };
 
   const renderContent = () => {
     switch(activeTab) {
       case 'dashboard': return <Dashboard accounts={accounts} transactions={transactions} stocks={stocks} />;
       case 'accounts': return <Accounts accounts={accounts} onAddAccount={handleAddAccount} onEditAccount={handleEditAccount} onDeleteAccount={handleDeleteAccount} />;
-      case 'transactions': return <Transactions transactions={transactions} accounts={accounts} />;
+      case 'transactions': return <Transactions transactions={transactions} accounts={accounts} onClearHistory={handleClearHistory} />;
       case 'stocks': return <Stocks stocks={stocks} onUpdatePrice={handleUpdateStockPrice} />;
       default: return <Dashboard accounts={accounts} transactions={transactions} stocks={stocks} />;
     }
@@ -156,8 +150,7 @@ const App: React.FC = () => {
     <Layout 
       activeTab={activeTab} 
       onTabChange={setActiveTab}
-      onAddClick={() => { setAiPreFilledData(null); setIsAddModalOpen(true); }}
-      onAIClick={() => setIsAIModalOpen(true)}
+      onAddClick={() => setIsAddModalOpen(true)}
     >
       {renderContent()}
       
@@ -167,14 +160,6 @@ const App: React.FC = () => {
         accounts={accounts}
         stocks={stocks}
         onSave={handleAddTransaction}
-        initialData={aiPreFilledData}
-      />
-
-      <AIAssistantModal 
-        isOpen={isAIModalOpen}
-        onClose={() => setIsAIModalOpen(false)}
-        onParsed={handleAIParse}
-        accounts={accounts}
       />
     </Layout>
   );

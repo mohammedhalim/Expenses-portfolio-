@@ -1,13 +1,14 @@
 import React from 'react';
 import { Transaction, Account, PREDEFINED_CATEGORIES, TransactionType } from '../types';
-import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft, TrendingUp, TrendingDown, ShoppingBag } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft, TrendingUp, TrendingDown, ShoppingBag, Trash2 } from 'lucide-react';
 
 interface TransactionsProps {
   transactions: Transaction[];
   accounts: Account[];
+  onClearHistory: () => void;
 }
 
-const Transactions: React.FC<TransactionsProps> = ({ transactions, accounts }) => {
+const Transactions: React.FC<TransactionsProps> = ({ transactions, accounts, onClearHistory }) => {
   // Sort by date desc
   const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -29,9 +30,26 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, accounts }) =
     return PREDEFINED_CATEGORIES.find(c => c.id === t.categoryId)?.name || 'General';
   };
 
+  const handleClearClick = () => {
+    if (window.confirm("Are you sure you want to delete ALL transaction history? Your current account balances will remain as they are. This action cannot be undone.")) {
+      onClearHistory();
+    }
+  };
+
   return (
     <div className="p-5">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">History</h1>
+      <header className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">History</h1>
+        {transactions.length > 0 && (
+          <button 
+            onClick={handleClearClick} 
+            className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+          >
+            <Trash2 size={18} />
+            <span className="text-xs font-bold uppercase">Clear</span>
+          </button>
+        )}
+      </header>
       
       <div className="space-y-4">
         {sortedTransactions.length === 0 && (
